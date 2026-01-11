@@ -1,0 +1,515 @@
+// ============================================
+// WMS DATABASE SCHEMA - GR MODULE (Goods Receipt - Phiếu nhập kho)
+// ============================================
+// Tên dự án: WMS (Warehouse Management System)
+// Module: GR (Goods Receipt - Phiếu nhập kho)
+// Tích hợp với: ASN Module
+// Tài liệu tham khảo:
+//   - E3.2.US-01: Tạo GR (Phiếu nhập kho)
+//   - E3.1.US-07: Chi tiết ASN - Danh sách GR
+//   - E3.2.US-03: Kiểm tra chất lượng
+//   - E3.2.US-05: Danh sách GR (Phiếu nhập kho)
+//   - E3.2.US-06: Chi tiết GR (phiếu nhập kho)
+// Version: 1.0
+// Created: 2026-01-11
+// ============================================
+
+Project WMS_GR {
+  database_type: 'SQL Server'
+  Note: '''
+    WMS Database Schema - GR Module (Goods Receipt)
+    Quản lý Phiếu nhập kho, tích hợp với ASN
+  '''
+}
+
+// ============================================
+// GR (GOODS RECEIPT) TABLES - Phiếu nhập kho
+// ============================================
+
+Table GR {
+  GR_Id uniqueidentifier [pk, default: `NEWID()`, note: 'ID phiếu nhập kho (khóa chính)']
+  
+  // Mã GR (tự động sinh theo chuẩn - BR-01)
+  GR_Code nvarchar(50) [not null, unique, note: 'Mã phiếu nhập kho tự động sinh (theo chuẩn)']
+  
+  // Foreign Key - Liên kết với ASN (BR-02: Mỗi GR luôn liên kết với 1 ASN)
+  ASN_Id uniqueidentifier [not null, note: 'ID kế hoạch nhận hàng (FK → ASN, BR-02)']
+  
+  // Foreign Keys - Mapping từ ASN  
+  Warehouse_Id uniqueidentifier [not null, note: 'ID kho nhận (lấy từ ASN)']
+  LegalEntity_Id uniqueidentifier [not null, note: 'ID pháp nhân (lấy từ ASN)']
+  
+  // Loại phiếu (Enum: PO/Trả kho/Đổi NCC/Chuyển kho/Sửa chữa/Sản xuất)
+  GR_Type nvarchar(50) [not null, note: 'Loại phiếu (PO, Trả kho, Đổi NCC, Chuyển kho, Sửa chữa, Sản xuất)']
+  
+  // Mã tham chiếu (PO_Code, Return_Code, Transfer_Code,...)
+  Reference_Code nvarchar(50) [note: 'Mã tham chiếu (lấy từ ASN)']
+  
+  // Thông tin bổ sung theo loại GR
+  Supplier_Id uniqueidentifier [note: 'ID nhà cung cấp (cho GR loại PO hoặc Đổi NCC)']
+  Source_Warehouse_Id uniqueidentifier [note: 'ID kho xuất (cho GR loại Chuyển kho)']
+  Department_Id uniqueidentifier [note: 'ID bộ phận (cho GR loại Trả kho/Sửa chữa/Sản xuất)']
+  Vehicle_Number nvarchar(50) [note: 'Biển số xe (cho GR loại PO hoặc Đổi NCC)']
+  
+  // Người nhận và kiểm hàng
+  Receiver_User_Id uniqueidentifier [not null, note: 'ID người nhận (Required, default = current user)']
+  Receiver_Date datetime2 [not null, default: `GETDATE()`, note: 'Ngày nhận (dd/MM/yyyy hh:mm)']
+  Inspector_User_Id uniqueidentifier [note: 'ID người kiểm hàng (Optional, có thể nhiều User)']
+  
+  // Trạng thái GR
+  GR_Status nvarchar(50) [not null, default: 'Nhập', note: 'Trạng thái: Nhập/Chờ xử lý/Đang xử lý/Hoàn thành']
+  
+  // Ngày hoàn thành lưukho
+  Completed_Date datetime2 [note: 'Ngày hoàn thành lưu kho (dd/MM/yyyy hh:mm, nullable)']
+  
+  // Ghi chú và file đính kèm
+  Notes nvarchar(1000) [note: 'Ghi chú']
+  Attachment_Path nvarchar(max) [note: 'Đường dẫn file đính kèm (≤2MB/file, JSON array)']
+  
+  // Audit fields
+  Created_By uniqueidentifier [note: 'Người tạo']
+  Created_At datetime2 [default: `GETDATE()`, note: 'Thời gian tạo']
+  Updated_By uniqueidentifier [note: 'Người cập nhật']
+  Updated_At datetime2 [note: 'Thời gian cập nhật']
+  Is_Deleted bit [default: 0, note: 'Đánh dấu xóa']
+  
+  Indexes {
+    GR_Code [unique]
+    ASN_Id
+    GR_Status
+    GR_Type
+    Warehouse_Id
+    Supplier_Id
+    Receiver_Date
+    Updated_At
+  }
+  
+  Note: '''
+    Bảng: GR (Goods Receipt Header)
+    Chức năng: Quản lý thông tin chung của Phiếu nhập kho.
+    - Là hồ sơ pháp lý ghi nhận việc nhận hàng từ NCC hoặc các nguồn khác.
+    - Theo dõi trạng thái tổng thể của quá trình nhập (Nhập -> Chờ xử lý -> Hoàn thành).
+    - Kết nối chặt chẽ với ASN (1 ASN -> N GR).
+  '''
+}
+
+Table GR_Item {
+  GR_Item_Id uniqueidentifier [pk, default: `NEWID()`, note: 'ID chi tiết phiếu nhập (khóa chính)']
+  GR_Id uniqueidentifier [not null, note: 'ID phiếu nhập kho']
+  Item_Id uniqueidentifier [not null, note: 'ID sản phẩm']
+  
+  // Thông tin item
+  Item_Code nvarchar(50) [not null, note: 'Mã sản phẩm (MA-xxxxx)']
+  Item_Name nvarchar(200) [note: 'Tên sản phẩm']
+  Item_Image_Path nvarchar(500) [note: 'Đường dẫn hình ảnh']
+  
+  // ĐVT
+  UOM nvarchar(50) [not null, note: 'Đơn vị tính (lấy từ ASN)']
+  
+  // Số lượng từ ASN (Read-only trong GR)
+  Expected_Quantity decimal(18,4) [note: 'SL dự nhập (từ ASN, read-only)']
+  Already_Received_Quantity decimal(18,4) [default: 0, note: 'SL đã nhập trước đó (từ ASN, read-only)']
+  Already_Returned_Quantity decimal(18,4) [default: 0, note: 'SL đã trả trước đó (từ ASN, read-only)']
+  Already_Canceled_Quantity decimal(18,4) [default: 0, note: 'SL đã hủy trước đó (từ ASN, read-only)']
+  
+  // Số lượng nhận lần này (User input trong GR - AC2)
+  Received_Quantity decimal(18,4) [not null, note: 'SL nhận lần này (User input, phải > 0, AC2)']
+  Return_Quantity decimal(18,4) [default: 0, note: 'SL trả NCC lần này (User input, ≥ 0, AC2)']
+  
+  // Validation: Received_Quantity + Return_Quantity ≤ Remaining_Quantity
+  // Remaining_Quantity = Expected_Quantity - (Already_Received + Already_Returned + Already_Canceled)
+  
+  // Ghi chú
+  Notes nvarchar(1000) [note: 'Ghi chú']
+  
+  // Audit fields
+  Created_By uniqueidentifier [note: 'Người tạo']
+  Created_At datetime2 [default: `GETDATE()`, note: 'Thời gian tạo']
+  Updated_By uniqueidentifier [note: 'Người cập nhật']
+  Updated_At datetime2 [note: 'Thời gian cập nhật']
+  Is_Deleted bit [default: 0, note: 'Đánh dấu xóa']
+  
+  Indexes {
+    GR_Id
+    Item_Id
+    Item_Code
+  }
+  
+  Note: '''
+    Bảng: GR_Item (Goods Receipt Details)
+    Chức năng: Ghi nhận chi tiết số lượng thực tế nhận được của từng mặt hàng.
+    - So sánh giữa Số lượng kế hoạch (Expected) và Thực nhận (Received).
+    - Ghi nhận số lượng sai lệch, hư hỏng hoặc trả lại NCC ngay tại thời điểm nhận.
+    - Là dữ liệu đầu vào cho quy trình Q/C.
+  '''
+}
+
+// ============================================
+// BẢNG XỬ LÝ CHẤT LƯỢNG (Quality Check)
+// ============================================
+
+Table GR_Quality_Check {
+  Quality_Check_Id uniqueidentifier [pk, default: `NEWID()`, note: 'ID xử lý chất lượng (khóa chính)']
+  GR_Id uniqueidentifier [not null, note: 'ID phiếu nhập kho']
+  GR_Item_Id uniqueidentifier [not null, note: 'ID chi tiết phiếu nhập']
+  Item_Id uniqueidentifier [not null, note: 'ID sản phẩm']
+  
+  // Số lượng thực nhập (từ GR_Item)
+  Total_Received_Quantity decimal(18,4) [not null, note: 'SL thực nhận (từ GR_Item, read-only, AC8)']
+  
+  // Phân loại hàng (AC2, AC4)
+  // SL lưu kho + SL xuất ngay + SL xử lý hủy = SL thực nhập
+  Storage_Quantity decimal(18,4) [default: 0, note: 'SL lưu kho (>= 0, AC2)']
+  Immediate_Export_Quantity decimal(18,4) [default: 0, note: 'SL xuất ngay (>= 0, chỉ cho ASN loại PO, AC4)']
+  Canceled_Quantity decimal(18,4) [default: 0, note: 'SL xử lý hủy (>= 0, AC2)']
+  
+  // Ghi chú xử lý
+  Processing_Notes nvarchar(1000) [note: 'Ghi chú xử lý (≤255 ký tự)']
+  
+  // Audit fields
+  Created_By uniqueidentifier [note: 'Người tạo']
+  Created_At datetime2 [default: `GETDATE()`, note: 'Thời gian tạo']
+  Updated_By uniqueidentifier [note: 'Người cập nhật']
+  Updated_At datetime2 [note: 'Thời gian cập nhật']
+  Is_Deleted bit [default: 0, note: 'Đánh dấu xóa']
+  
+  Indexes {
+    GR_Id
+    GR_Item_Id
+    Item_Id
+  }
+  
+  Note: '''
+    Bảng: GR_Quality_Check (QC Processing)
+    Chức năng: Quản lý quá trình phân loại và xử lý hàng sau khi nhận (QC).
+    - Phân tách số lượng thực nhận thành 3 luồng: 
+      1. Lưu kho (Storage)
+      2. Xuất ngay / Cross-dock (Immediate Export)
+      3. Hàng lỗi/Hủy (Canceled)
+    - Đảm bảo 100% số lượng nhận được phải được định danh trạng thái rõ ràng trước khi nhập kho chính thức.
+  '''
+}
+
+// ============================================
+// BẢNG PHÂN BỔ VỊ TRÍ LƯU KHO (Storage Bin Allocation)
+// ============================================
+
+Table GR_Storage_Bin_Allocation {
+  Allocation_Id uniqueidentifier [pk, default: `NEWID()`, note: 'ID phân bổ vị trí (khóa chính)']
+  Quality_Check_Id uniqueidentifier [not null, note: 'ID xử lý chất lượng']
+  GR_Id uniqueidentifier [not null, note: 'ID phiếu nhập']
+  Item_Id uniqueidentifier [not null, note: 'ID sản phẩm']
+  
+  // Vị trí cất hàng (AC5)
+  Bin_Id uniqueidentifier [not null, note: 'ID vị trí cất hàng (Bin)']
+  Bin_Code nvarchar(50) [not null, note: 'Mã vị trí cất hàng']
+  
+  // Loại lưu kho (AC5.2)
+  Storage_Type nvarchar(50) [not null, note: 'Loại lưu kho (VD: Tồn kho thường, Tồn kho chờ kiểm tra,...)']
+  
+  // Số lượng
+  Stored_Quantity decimal(18,4) [not null, note: 'SL lưu kho tại vị trí này (phải > 0)']
+  
+  // Audit fields
+  Created_By uniqueidentifier [note: 'Người tạo']
+  Created_At datetime2 [default: `GETDATE()`, note: 'Thời gian tạo']
+  Updated_By uniqueidentifier [note: 'Người cập nhật']
+  Updated_At datetime2 [note: 'Thời gian cập nhật']
+  Is_Deleted bit [default: 0, note: 'Đánh dấu xóa']
+  
+  Indexes {
+    Quality_Check_Id
+    GR_Id
+    Item_Id
+    Bin_Id
+  }
+  
+  Note: '''
+    Bảng: GR_Storage_Bin_Allocation (Putaway Strategy)
+    Chức năng: Chỉ định vị trí cất hàng (Bin Location) cho lượng hàng cần lưu kho.
+    - Trả lời câu hởi: "Hàng này sẽ được cất vào đâu?".
+    - Hỗ trợ chia nhỏ số lượng để cất vào nhiều vị trí khác nhau (Split Bin).
+    - Ghi nhận loại tồn kho (VD: Hàng chờ kiểm, Hàng hư hỏng...).
+  '''
+}
+
+// ============================================
+// BẢNG XUẤT NGAY (Immediate Export Allocation)
+// ============================================
+
+Table GR_Immediate_Export_Allocation {
+  Export_Allocation_Id uniqueidentifier [pk, default: `NEWID()`, note: 'ID phân bổ xuất ngay (khóa chính)']
+  Quality_Check_Id uniqueidentifier [not null, note: 'ID xử lý chất lượng']
+  GR_Id uniqueidentifier [not null, note: 'ID phiếu nhập']
+  Item_Id uniqueidentifier [not null, note: 'ID sản phẩm']
+  
+  // Yêu cầu lãnh kho (AC6)
+  Warehouse_Request_Id uniqueidentifier [not null, note: 'ID yêu cầu lãnh kho (FK → Warehouse_Request)']
+  Warehouse_Request_Code nvarchar(50) [not null, note: 'Mã yêu cầu lãnh kho']
+  
+  // Số lượng
+  Export_Quantity decimal(18,4) [not null, note: 'SL xuất ngay (phải > 0)']
+  
+  // Audit fields
+  Created_By uniqueidentifier [note: 'Người tạo']
+  Created_At datetime2 [default: `GETDATE()`, note: 'Thời gian tạo']
+  Updated_By uniqueidentifier [note: 'Người cập nhật']
+  Updated_At datetime2 [note: 'Thời gian cập nhật']
+  Is_Deleted bit [default: 0, note: 'Đánh dấu xóa']
+  
+  Indexes {
+    Quality_Check_Id
+    GR_Id
+    Item_Id
+    Warehouse_Request_Id
+  }
+  
+  Note: '''
+    Bảng: GR_Immediate_Export_Allocation (Cross-docking)
+    Chức năng: Xử lý kỹ thuật Cross-docking (Nhập và Xuất thẳng không qua lưu kho).
+    - Liên kết trực tiếp Phiếu nhập (GR) với Yêu cầu xuất kho (Warehouse Request).
+    - Giúp giảm thao tác handling và thời gian lưu kho cho hàng cần gấp.
+  '''
+}
+
+// ============================================
+// BẢNG LOG GR
+// ============================================
+
+Table GR_Log {
+  Log_Id uniqueidentifier [pk, default: `NEWID()`, note: 'ID log (khóa chính)']
+  
+  // Foreign Keys
+  GR_Id uniqueidentifier [not null, note: 'ID phiếu nhập kho']
+  ASN_Id uniqueidentifier [note: 'ID kế hoạch nhận hàng']
+  
+  // Thông tin log (AC10)
+  Action nvarchar(200) [not null, note: 'Hành động (VD: "Tạo GR", "Lưu kho", "Xuất ngay", "Xử lý hủy", "Hoàn thành")']
+  Log_Time datetime2 [not null, default: `GETDATE()`, note: 'Thời gian ghi log']
+  User_Id uniqueidentifier [note: 'ID người dùng']
+  User_Name nvarchar(100) [note: 'Tên người dùng']
+  
+  // Chi tiết thay đổi (JSON format)
+  Change_Details nvarchar(max) [note: 'Chi tiết thay đổi (dạng JSON)']
+  IP_Address nvarchar(50) [note: 'Địa chỉ IP']
+  
+  // Audit
+  Created_At datetime2 [default: `GETDATE()`, note: 'Thời gian tạo log']
+  
+  Indexes {
+    GR_Id
+    ASN_Id
+    Log_Time
+    User_Id
+  }
+  
+  Note: '''
+    Bảng: GR_Log (Audit Trail)
+    Chức năng: Nhật ký truy vết toàn bộ thao tác trên phiếu nhập.
+    - Ghi lại ai, làm gì, vào lúc nào (Create, Update, Submit, Approve).
+    - Phục vụ mục đích thanh tra, kiểm soát và debug lỗi quy trình.
+  '''
+}
+
+// ============================================
+// BẢNG TỒN KHO & GIAO DỊCH KHO (Inventory Module)
+// ============================================
+
+Table Inventory {
+  Inventory_Id uniqueidentifier [pk, default: `NEWID()`, note: 'ID tồn kho (khóa chính)']
+  
+  // Thông tin cơ bản
+  Warehouse_Id uniqueidentifier [not null, note: 'ID kho']
+  LegalEntity_Id uniqueidentifier [not null, note: 'ID pháp nhân']
+  Item_Id uniqueidentifier [not null, note: 'ID sản phẩm']
+  
+  // Tình trạng hàng (Stock Status)
+  Stock_Status nvarchar(50) [not null, note: 'Tình trạng hàng (Chờ kiểm nhập, Mới, Chờ xuất, Đã soạn, Lỗi,...)']
+  Inventory_Type nvarchar(50) [default: 'Normal', note: 'Loại tồn kho (Normal, Consignment, Bonded,...) - E4.1']
+  
+  // Số lượng tồn kho  
+  Available_Quantity decimal(18,4) [default: 0, note: 'SL tồn kho khả dụng (>= 0)']
+  Allocated_Quantity decimal(18,4) [default: 0, note: 'SL đang được giữ chỗ/alloc cho đơn xuất (>= 0)']
+  
+  // Audit fields
+  Created_By uniqueidentifier [note: 'Người tạo']
+  Created_At datetime2 [default: `GETDATE()`, note: 'Thời gian tạo']
+  Updated_By uniqueidentifier [note: 'Người cập nhật']
+  Updated_At datetime2 [note: 'Thời gian cập nhật']
+  Is_Deleted bit [default: 0, note: 'Đánh dấu xóa']
+  
+  Indexes {
+    Warehouse_Id
+    LegalEntity_Id
+    Item_Id
+    Stock_Status
+    Inventory_Type
+    (Warehouse_Id, LegalEntity_Id, Item_Id, Stock_Status, Inventory_Type) [unique, note: 'Unique constraint']
+  }
+  
+  Note: '''
+    Bảng: Inventory (Stock Summary)
+    Chức năng: Quản lý tổng tồn kho theo mặt hàng và trạng thái (Snapshot).
+    - Cho biết "Trong kho đang có bao nhiêu cái Item A ở trạng thái Mới?".
+    - Dùng để kiểm tra nhanh khả năng cung ứng (Availability) mà không cần tính toán từ chi tiết.
+  '''
+}
+
+Table Inventory_Bin {
+  Inventory_Bin_Id uniqueidentifier [pk, default: `NEWID()`, note: 'ID tồn kho theo vị trí (khóa chính)']
+  
+  // Vị trí
+  Bin_Id uniqueidentifier [not null, note: 'ID vị trí cất hàng (Bin)']
+  
+  // Thông tin cơ bản
+  Warehouse_Id uniqueidentifier [not null, note: 'ID kho']
+  LegalEntity_Id uniqueidentifier [not null, note: 'ID pháp nhân']
+  Item_Id uniqueidentifier [not null, note: 'ID sản phẩm']
+  
+  // Lot/Batch (Optional but recommended)
+  Lot_Code nvarchar(50) [note: 'Số lô/Batch (nếu có)']
+  Expiry_Date date [note: 'Ngày hết hạn (nếu có)']
+  
+  // Tình trạng hàng
+  Stock_Status nvarchar(50) [not null, note: 'Tình trạng hàng']
+  Inventory_Type nvarchar(50) [default: 'Normal', note: 'Loại tồn kho - E4.2']
+  
+  // Số lượng tồn kho theo vị trí
+  Available_Quantity decimal(18,4) [default: 0, note: 'SL tồn kho thực tế tại vị trí (>= 0)']
+  
+  // Tracking Dates (E4.2 BR-04)
+  Last_Receipt_Date datetime2 [note: 'Ngày nhập gần nhất tại bin này']
+  Last_Issue_Date datetime2 [note: 'Ngày xuất gần nhất tại bin này']
+  
+  // Audit fields
+  Created_By uniqueidentifier [note: 'Người tạo']
+  Created_At datetime2 [default: `GETDATE()`, note: 'Thời gian tạo']
+  Updated_By uniqueidentifier [note: 'Người cập nhật']
+  Updated_At datetime2 [note: 'Thời gian cập nhật']
+  Is_Deleted bit [default: 0, note: 'Đánh dấu xóa']
+  
+  Indexes {
+    Bin_Id
+    Warehouse_Id
+    LegalEntity_Id
+    Item_Id
+    Lot_Code
+    Stock_Status
+    Inventory_Type
+    (Bin_Id, Item_Id, Stock_Status, Inventory_Type, Lot_Code) [unique, note: 'Unique at Bin Level']
+  }
+  
+  Note: '''
+    Bảng: Inventory_Bin (Stock Detail)
+    Chức năng: Quản lý tồn kho chi tiết đến từng vị trí (Bin) và Lô (Lot).
+    - Cho biết "Item A, Batch B đang nằm ở Kệ này bao nhiêu cái?".
+    - Hỗ trợ việc lấy hàng (Picking) chính xác và tối ưu không gian kho.
+  '''
+}
+
+Table Inventory_Transaction {
+  Transaction_Id uniqueidentifier [pk, default: `NEWID()`, note: 'ID giao dịch kho']
+  
+  // Loại giao dịch
+  Transaction_Type nvarchar(50) [not null, note: 'GR_RECEIVE (Nhập), GR_RETURN (Trả), PICK (Lấy), MOVE (Chuyển), ADJUST (Kiểm kê)']
+  
+  // Tham chiếu
+  Reference_Id uniqueidentifier [note: 'ID chứng từ gốc (GR_Id, Order_Id, Adjustment_Id)']
+  Reference_Code nvarchar(50) [note: 'Mã chứng từ gốc']
+  Reference_Line_Id uniqueidentifier [note: 'ID dòng chi tiết (GR_Item_Id,...)']
+  
+  // Đối tượng
+  Warehouse_Id uniqueidentifier [not null]
+  LegalEntity_Id uniqueidentifier [not null]
+  Item_Id uniqueidentifier [not null]
+  
+  // Vị trí (Từ đâu -> Đến đâu)
+  From_Bin_Id uniqueidentifier [note: 'Vị trí nguồn (NULL nếu Nhập mới)']
+  To_Bin_Id uniqueidentifier [note: 'Vị trí đích (NULL nếu Xuất kho/Hủy)']
+  
+  // Số lượng
+  Quantity decimal(18,4) [not null, note: 'Số lượng thay đổi (+/-)']
+  UOM nvarchar(50)
+  
+  // Lot tracking
+  Lot_Code nvarchar(50)
+  
+  // Trạng thái tồn kho liên quan
+  Stock_Status nvarchar(50) [not null, note: 'Trạng thái hàng của giao dịch này']
+  Inventory_Type nvarchar(50) [default: 'Normal']
+  
+  // Audit
+  Transaction_Date datetime2 [default: `GETDATE()`, note: 'Thời điểm xảy ra']
+  Performed_By uniqueidentifier [note: 'User thực hiện']
+  Performed_By_Name nvarchar(100)
+  Notes nvarchar(1000)
+  
+  Indexes {
+    Transaction_Type
+    Reference_Id
+    Item_Id
+    Warehouse_Id
+    Transaction_Date
+  }
+  
+  Note: '''
+    Bảng: Inventory_Transaction (Stock Ledger)
+    Chức năng: Sổ cái ghi nhận dòng chảy vật tư (Transaction History).
+    - Lưu trữ lịch sử MỌI biến động tăng/giảm số lượng trong kho.
+    - Là cơ sở dữ liệu bất biến (Immutable) để đối chiếu, báo cáo và truy vết nguồn gốc (Traceability).
+    - Giải quyết câu hỏi: "Tại sao tồn kho lại là con số này?".
+  '''
+}
+
+// ============================================
+// RELATIONSHIPS
+// ============================================
+
+// GR Relationships
+Ref: GR.ASN_Id > ASN.ASN_Id
+Ref: GR.Warehouse_Id > Warehouse.Warehouse_Id
+Ref: GR.LegalEntity_Id > LegalEntity.LegalEntity_Id
+Ref: GR.Supplier_Id > Supplier.Supplier_Id
+Ref: GR.Receiver_User_Id > User.User_Id
+Ref: GR.Inspector_User_Id > User.User_Id
+
+// GR_Item Relationships
+Ref: GR_Item.GR_Id > GR.GR_Id
+Ref: GR_Item.Item_Id > Item.Item_Id
+
+// Quality Check Relationships
+Ref: GR_Quality_Check.GR_Id > GR.GR_Id
+Ref: GR_Quality_Check.GR_Item_Id > GR_Item.GR_Item_Id
+Ref: GR_Quality_Check.Item_Id > Item.Item_Id
+
+// Storage Bin Allocation Relationships
+Ref: GR_Storage_Bin_Allocation.Quality_Check_Id > GR_Quality_Check.Quality_Check_Id
+Ref: GR_Storage_Bin_Allocation.GR_Id > GR.GR_Id
+Ref: GR_Storage_Bin_Allocation.Item_Id > Item.Item_Id
+// Ref: GR_Storage_Bin_Allocation.Bin_Id > Bin.Bin_Id // (Table Bin thuộc module Layout, chưa định nghĩa ở đây)
+
+// Immediate Export Relationships
+Ref: GR_Immediate_Export_Allocation.Quality_Check_Id > GR_Quality_Check.Quality_Check_Id
+Ref: GR_Immediate_Export_Allocation.GR_Id > GR.GR_Id
+Ref: GR_Immediate_Export_Allocation.Item_Id > Item.Item_Id
+// Ref: GR_Immediate_Export_Allocation.Warehouse_Request_Id > Warehouse_Request.Request_Id // (Table Warehouse_Request thuộc module Outbound, chưa định nghĩa ở đây)
+
+// Log Relationships
+Ref: GR_Log.GR_Id > GR.GR_Id
+Ref: GR_Log.ASN_Id > ASN.ASN_Id
+Ref: GR_Log.User_Id > User.User_Id
+
+// Inventory Relationships
+Ref: Inventory.Warehouse_Id > Warehouse.Warehouse_Id
+Ref: Inventory.LegalEntity_Id > LegalEntity.LegalEntity_Id
+Ref: Inventory.Item_Id > Item.Item_Id
+
+Ref: Inventory_Bin.Warehouse_Id > Warehouse.Warehouse_Id
+Ref: Inventory_Bin.LegalEntity_Id > LegalEntity.LegalEntity_Id
+Ref: Inventory_Bin.Item_Id > Item.Item_Id
+// Ref: Inventory_Bin.Bin_Id > Bin.Bin_Id
+
+// Transaction Relationships
+Ref: Inventory_Transaction.Warehouse_Id > Warehouse.Warehouse_Id
+Ref: Inventory_Transaction.Item_Id > Item.Item_Id
+Ref: Inventory_Transaction.Performed_By > User.User_Id

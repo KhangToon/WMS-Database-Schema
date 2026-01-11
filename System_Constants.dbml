@@ -1,0 +1,120 @@
+// ============================================
+// SYSTEM CONSTANTS & ENUMS
+// ============================================
+// Bảng chứa các giá trị Type/Status chuẩn hóa cho toàn hệ thống
+// Giúp tránh việc hardcode string trong code và dbml
+// ============================================
+
+Table Sys_ASN_Type {
+  Id int [pk, increment]
+  Code nvarchar(50) [not null, unique]
+  Name nvarchar(100)
+  Description nvarchar(200)
+  
+  Note: '''
+    Các loại ASN được hỗ trợ
+    - PO: Đơn hàng mua
+    - RTR: Return to Repository (Khách trả hàng về kho)
+    - SRR: Supplier Return Request (Đổi trả NCC)
+    - ODR: Outbound Delivery Request (Nhập chuyển kho)
+  '''
+}
+
+Table Sys_ASN_Status {
+  Id int [pk, increment]
+  Code nvarchar(50) [not null, unique]
+  Name nvarchar(100)
+  
+  Note: '''
+    Trạng thái của ASN
+    - NEW: Mới tạo
+    - PROCESSING: Đang nhập hàng (GR created)
+    - COMPLETED: Đã nhập đủ 100%
+    - CLOSED: Đóng thủ công
+    - CANCELED: Hủy bỏ
+  '''
+}
+
+Table Sys_GR_Type {
+  Id int [pk, increment]
+  Code nvarchar(50) [not null, unique]
+  Name nvarchar(100)
+  
+  Note: '''
+    Phân loại Phiếu nhập kho (GR)
+    - PO: Nhập mua hàng
+    - RTR: Nhập hàng trả lại
+    - TRANSFER: Nhập chuyển kho
+    - OTHERS: Nhập khác
+  '''
+}
+
+Table Sys_GR_Status {
+  Id int [pk, increment]
+  Code nvarchar(50) [not null, unique]
+  Name nvarchar(100)
+  
+  Note: '''
+    Trạng thái của GR
+    - DRAFT: Nháp
+    - SUBMITTED: Chờ xử lý QC
+    - PROCESSING: Đang xử lý QC
+    - COMPLETED: Hoàn thành
+    - CANCELED: Hủy
+  '''
+}
+
+Table Sys_Stock_Status {
+  Id int [pk, increment]
+  Code nvarchar(50) [not null, unique]
+  Name nvarchar(100)
+  Is_Block bit [default: 0, note: 'Có bị khóa không? (Block inventory)']
+  
+  Note: '''
+    Tình trạng hàng hóa (Inventory Condition)
+    - NEW: Hàng mới
+    - AVAILABLE: Khả dụng
+    - HOLD: Giữ chỗ/Chờ xử lý
+    - QC_PENDING: Chờ kiểm tra
+    - DAMAGED: Hàng lỗi
+    - REJECT: Hàng trả về
+  '''
+}
+
+Table Sys_Inventory_Type {
+  Id int [pk, increment]
+  Code nvarchar(50) [not null, unique]
+  Name nvarchar(100)
+  
+  Note: '''
+    Phân loại Tồn kho (Business Type)
+    - NORMAL: Tồn kho thường
+    - CONSIGNMENT: Hàng ký gửi
+    - BONDED: Kho ngoại quan
+    - TRANSIT: Hàng đang đi đường
+  '''
+}
+
+Table Sys_Transaction_Type {
+  Id int [pk, increment]
+  Code nvarchar(50) [not null, unique]
+  Name nvarchar(100)
+  Action nvarchar(10) [note: 'Increase (+), Decrease (-), Move (=)']
+  
+  Note: '''
+    Loại giao dịch kho (Transaction)
+    - GR_RECEIVE: Nhập hàng tạm (Receiving)
+    - PUTAWAY: Cất hàng lên kệ
+    - PICK: Lấy hàng
+    - PACK: Đóng gói
+    - SHIP: Xuất kho
+    - ADJUST: Kiểm kê điều chỉnh
+    - GR_RETURN: Trả hàng ngay khi nhập
+  '''
+}
+
+// Bổ sung relationship vào GR_Schema (chỉ mang tính chất tham khảo logic)
+// Ref: GR.GR_Type > Sys_GR_Type.Code
+// Ref: GR.GR_Status > Sys_GR_Status.Code
+// Ref: Inventory.Stock_Status > Sys_Stock_Status.Code
+// Ref: Inventory.Inventory_Type > Sys_Inventory_Type.Code

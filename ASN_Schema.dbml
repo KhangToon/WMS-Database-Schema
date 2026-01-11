@@ -1,0 +1,384 @@
+// ============================================
+// WMS DATABASE SCHEMA - ASN MODULE
+// ============================================
+// Tên dự án: WMS (Warehouse Management System)
+// Module: ASN (Advanced Shipping Notice - Kế hoạch nhận hàng)
+// Tài liệu tham khảo:
+//   - E3.1.US-01: Tự động tạo ASN từ PO
+//   - E3.1.US-02: Tự động tạo ASN từ RTR (Trả kho)
+//   - E3.1.US-03: Tự động tạo ASN từ SRR (Đổi NCC)
+//   - E3.1.US-09: Tự động tạo ASN từ ODR (Chuyển kho)
+// Database: SQL Server
+// Version: 1.1 (Updated support for Multi-source)
+// Created: 2026-01-11
+// ============================================
+
+Project WMS_ASN {
+  database_type: 'SQL Server'
+  Note: '''
+    WMS Database Schema - ASN Module
+    Quản lý Kế hoạch nhận hàng (ASN) từ nhiều nguồn:
+    1. PO (Đơn hàng mua)
+    2. RTR (Đề nghị trả kho)
+    3. SRR (Đề nghị đổi trả NCC)
+    4. ODR (Yêu cầu nhận chuyển kho)
+  '''
+}
+
+// ============================================
+// MASTER DATA TABLES (Reference Tables)
+// ============================================
+
+Table Warehouse {
+  Warehouse_Id uniqueidentifier [pk, default: `NEWID()`, note: 'ID kho (khóa chính)']
+  Warehouse_Code nvarchar(50) [not null, unique, note: 'Mã kho (duy nhất)']
+  Warehouse_Name nvarchar(200) [not null, note: 'Tên kho']
+  Address nvarchar(500) [note: 'Địa chỉ kho']
+  Is_Active bit [default: 1, note: 'Trạng thái hoạt động (1=Có, 0=Không)']
+  Created_By uniqueidentifier [note: 'Người tạo']
+  Created_At datetime2 [default: `GETDATE()`, note: 'Thời gian tạo']
+  Updated_By uniqueidentifier [note: 'Người cập nhật']
+  Updated_At datetime2 [note: 'Thời gian cập nhật']
+  Is_Deleted bit [default: 0, note: 'Đánh dấu xóa']
+  
+  Note: 'Danh mục kho - Master data'
+}
+
+Table LegalEntity {
+  LegalEntity_Id uniqueidentifier [pk, default: `NEWID()`]
+  Entity_Code nvarchar(50) [not null, unique]
+  Entity_Name nvarchar(200) [not null]
+  Tax_Code nvarchar(50)
+  Is_Active bit [default: 1]
+  Created_By uniqueidentifier
+  Created_At datetime2 [default: `GETDATE()`]
+  Updated_By uniqueidentifier
+  Updated_At datetime2
+  Is_Deleted bit [default: 0]
+  
+  Note: 'Danh mục pháp nhân'
+}
+
+Table Supplier {
+  Supplier_Id uniqueidentifier [pk, default: `NEWID()`]
+  Supplier_Code nvarchar(50) [not null, unique]
+  Supplier_Name nvarchar(200) [not null]
+  Contact_Person nvarchar(100)
+  Phone nvarchar(20)
+  Email nvarchar(200)
+  Address nvarchar(500)
+  Is_Active bit [default: 1]
+  Created_By uniqueidentifier
+  Created_At datetime2 [default: `GETDATE()`]
+  Updated_By uniqueidentifier
+  Updated_At datetime2
+  Is_Deleted bit [default: 0]
+  
+  Note: 'Danh mục nhà cung cấp (NCC)'
+}
+
+Table Item {
+  Item_Id uniqueidentifier [pk, default: `NEWID()`]
+  Item_Code nvarchar(50) [not null, unique, note: 'Mã sản phẩm']
+  Item_Name nvarchar(200) [not null]
+  Item_Description nvarchar(1000)
+  Item_Image_Path nvarchar(500)
+  Base_UOM nvarchar(50) [note: 'Đơn vị tính chính']
+  Category_Id uniqueidentifier
+  Is_Active bit [default: 1]
+  Created_By uniqueidentifier
+  Created_At datetime2 [default: `GETDATE()`]
+  Updated_By uniqueidentifier
+  Updated_At datetime2
+  Is_Deleted bit [default: 0]
+  
+  Indexes {
+    Item_Code
+    Item_Name
+    Category_Id
+  }
+  
+  Note: 'Danh mục sản phẩm/nguyên vật liệu'
+}
+
+Table User {
+  User_Id uniqueidentifier [pk, default: `NEWID()`]
+  Username nvarchar(100) [not null, unique]
+  Email nvarchar(200) [unique]
+  Full_Name nvarchar(200)
+  Password_Hash nvarchar(500)
+  Phone nvarchar(20)
+  Role_Id uniqueidentifier
+  LegalEntity_Id uniqueidentifier
+  Is_Active bit [default: 1]
+  Last_Login datetime2
+  Created_By uniqueidentifier
+  Created_At datetime2 [default: `GETDATE()`]
+  Updated_By uniqueidentifier
+  Updated_At datetime2
+  Is_Deleted bit [default: 0]
+  
+  Note: 'Người dùng hệ thống'
+}
+
+// ============================================
+// SOURCE DOCUMENTS TABLES (Stub or Full)
+// ============================================
+
+Table PO {
+  PO_Id uniqueidentifier [pk, default: `NEWID()`]
+  PO_Code nvarchar(50) [not null, unique, note: 'MPO-xxxx']
+  PO_Date datetime2
+  
+  Warehouse_Id uniqueidentifier [not null, ref: > Warehouse.Warehouse_Id]
+  LegalEntity_Id uniqueidentifier [not null, ref: > LegalEntity.LegalEntity_Id]
+  Supplier_Id uniqueidentifier [not null, ref: > Supplier.Supplier_Id]
+  Requester_Id uniqueidentifier [not null, ref: > User.User_Id]
+  Approver_Id uniqueidentifier [ref: > User.User_Id]
+  
+  PO_Status nvarchar(50) [not null, default: 'Draft']
+  ASN_Created bit [default: 0, note: 'Flag đã tạo ASN']
+  
+  Total_Amount decimal(18,2)
+  Currency nvarchar(10) [default: 'VND']
+  Notes nvarchar(1000)
+  
+  Created_At datetime2
+  Updated_At datetime2
+  
+  Note: 'Đơn hàng mua (Purchase Order)'
+}
+
+Table PO_Item {
+  PO_Item_Id uniqueidentifier [pk, default: `NEWID()`]
+  PO_Id uniqueidentifier [not null, ref: > PO.PO_Id]
+  Item_Id uniqueidentifier [not null, ref: > Item.Item_Id]
+  
+  Item_Code nvarchar(50)
+  Item_Name nvarchar(200)
+  UOM nvarchar(50)
+  Quantity decimal(18,4)
+  
+  Note: 'Chi tiết PO'
+}
+
+// Placeholder for other source tables (RTR, SRR, ODR)
+// These would technically exist in other modules/schemas
+
+// ============================================
+// ASN (ADVANCED SHIPPING NOTICE) TABLES
+// ============================================
+
+Table ASN {
+  ASN_Id uniqueidentifier [pk, default: `NEWID()`]
+  
+  // Mã ASN (tự động sinh theo chuẩn)
+  ASN_Code nvarchar(50) [not null, unique, note: 'Mã kế hoạch nhận hàng']
+  
+  // Loại kế hoạch nhận hàng (Enum values)
+  ASN_Type nvarchar(50) [not null, note: 'Enum: "Đơn hàng PO", "Nhập trả về kho" (RTR), "Đổi hàng NCC" (SRR), "Nhập chuyển kho" (ODR)']
+  
+  // Source References (Polymorphic-like mechanism with specific columns)
+  PO_Id uniqueidentifier [ref: > PO.PO_Id, note: 'ID Đơn hàng (nếu từ PO)']
+  RTR_Id uniqueidentifier [note: 'ID Yêu cầu trả hàng (nếu từ RTR) - Ref to ReturnRequest module']
+  SRR_Id uniqueidentifier [note: 'ID Yêu cầu đổi trả NCC (nếu từ SRR) - Ref to SupplierReturnRequest module']
+  ODR_Id uniqueidentifier [note: 'ID Yêu cầu xuất kho (nếu từ ODR Chuyển kho) - Ref to OutboundRequest module']
+  
+  // Common Info
+  Reference_Code nvarchar(50) [note: 'Mã tham chiếu (PO Code, RTR Code, SRR Code, ODR Code)']
+  
+  // Locations & Entities
+  Warehouse_Id uniqueidentifier [not null, ref: > Warehouse.Warehouse_Id, note: 'Kho nhận']
+  Source_Warehouse_Id uniqueidentifier [ref: > Warehouse.Warehouse_Id, note: 'Kho xuất (chỉ bắt buộc với ODR Chuyển kho)']
+  LegalEntity_Id uniqueidentifier [not null, ref: > LegalEntity.LegalEntity_Id]
+  Supplier_Id uniqueidentifier [ref: > Supplier.Supplier_Id, note: 'Nhà cung cấp (Bắt buộc với PO, SRR. Null với RTR, ODR)']
+  
+  // People
+  Requester_Id uniqueidentifier [not null, ref: > User.User_Id, note: 'Người đề xuất (từ source doc)']
+  Approver_Id uniqueidentifier [not null, ref: > User.User_Id, note: 'Người duyệt (từ source doc)']
+  
+  // Status & Time
+  ASN_Status nvarchar(50) [not null, default: 'Mới', note: 'Mới, Đang xử lý, Hoàn thành, Hủy']
+  ASN_Created_Date datetime2 [not null, default: `GETDATE()`, note: 'Ngày tạo ASN']
+  Source_Doc_Date datetime2 [note: 'Ngày chứng từ nguồn (PO Date, RTR Date...)']
+  
+  // Progress
+  Completion_Percentage decimal(5,2) [default: 0, note: '% Hoàn tất']
+  
+  // Other
+  QR_Code_Path nvarchar(500)
+  Notes nvarchar(1000)
+  
+  // Audit fields
+  Created_By uniqueidentifier [note: 'User System hoặc người kích hoạt']
+  Created_At datetime2 [default: `GETDATE()`]
+  Updated_By uniqueidentifier
+  Updated_At datetime2
+  Is_Deleted bit [default: 0]
+  
+  Indexes {
+    ASN_Code [unique]
+    PO_Id
+    RTR_Id
+    SRR_Id
+    ODR_Id
+    ASN_Status
+    Warehouse_Id
+  }
+  
+  Note: '''
+    Kế hoạch nhận hàng (ASN) - Central hub for Inbound
+    - BR-01: Mã sinh tự động
+    - BR-02: 1 Source Document Confirmed = 1 ASN
+    - Hỗ trợ 4 luồng nhập: PO, RTR (Trả kho), SRR (Đổi NCC), ODR (Chuyển kho)
+  '''
+}
+
+Table ASN_Item {
+  ASN_Item_Id uniqueidentifier [pk, default: `NEWID()`]
+  ASN_Id uniqueidentifier [not null, ref: > ASN.ASN_Id]
+  Item_Id uniqueidentifier [not null, ref: > Item.Item_Id]
+  
+  // Item Info (Snapshot from Source)
+  Item_Code nvarchar(50) [not null]
+  Item_Name nvarchar(200)
+  Item_Image_Path nvarchar(500)
+  Item_Type nvarchar(50) [note: 'Loại hàng (cho ODR/RTR nếu có phân loại)']
+  
+  // Ownership (Specific for RTR)
+  Owner_Reference nvarchar(200) [note: 'Bộ phận/Nhân viên sở hữu (cho RTR)']
+  
+  // UOM
+  Transaction_UOM nvarchar(50) [not null, note: 'ĐVT giao dịch']
+  Base_UOM nvarchar(50)
+  Conversion_Factor decimal(18,4) [default: 1]
+  
+  // Quantities
+  Transaction_Quantity decimal(18,4) [not null, note: 'SL theo chứng từ nguồn (PO/RTR/SRR/ODR)']
+  Expected_Quantity decimal(18,4) [note: 'SL dự nhập (quy đổi ra Base UOM)']
+  Actual_Received_Quantity decimal(18,4) [default: 0, note: 'SL thực nhập']
+  Canceled_Quantity decimal(18,4) [default: 0]
+  Return_To_Supplier_Quantity decimal(18,4) [default: 0]
+  
+  // Progress
+  Completion_Percentage decimal(5,2) [default: 0]
+  
+  Notes nvarchar(1000)
+  
+  // Audit
+  Created_By uniqueidentifier
+  Created_At datetime2 [default: `GETDATE()`]
+  Updated_By uniqueidentifier
+  Updated_At datetime2
+  Is_Deleted bit [default: 0]
+  
+  Indexes {
+    ASN_Id
+    Item_Id
+  }
+  
+  Note: 'Chi tiết vật tư trong kế hoạch nhận hàng'
+}
+
+Table ASN_Delivery_Schedule {
+  Delivery_Schedule_Id uniqueidentifier [pk, default: `NEWID()`]
+  ASN_Id uniqueidentifier [not null, ref: > ASN.ASN_Id]
+  Item_Id uniqueidentifier [not null, ref: > Item.Item_Id]
+  
+  Item_Code nvarchar(50)
+  Item_Name nvarchar(200)
+  
+  Expected_Delivery_Quantity decimal(18,4)
+  Expected_Delivery_Date date
+  
+  Notes nvarchar(1000)
+  
+  Created_At datetime2 [default: `GETDATE()`]
+  
+  Note: 'Lịch giao hàng chi tiết (thường dùng cho PO)'
+}
+
+Table ASN_Log {
+  Log_Id uniqueidentifier [pk, default: `NEWID()`]
+  ASN_Id uniqueidentifier [ref: > ASN.ASN_Id]
+  
+  // Source References for easier querying
+  PO_Id uniqueidentifier
+  RTR_Id uniqueidentifier
+  
+  Action nvarchar(200) [not null]
+  Log_Time datetime2 [not null, default: `GETDATE()`]
+  User_Id uniqueidentifier [ref: > User.User_Id]
+  User_Name nvarchar(100)
+  
+  Change_Details nvarchar(max)
+  IP_Address nvarchar(50)
+  
+  Created_At datetime2
+}
+
+// ============================================
+// ADDITIONAL STUBS & RELATIONSHIPS
+// ============================================
+
+Table UOM {
+  UOM_Id uniqueidentifier [pk, default: `NEWID()`]
+  UOM_Code nvarchar(50) [not null, unique]
+  UOM_Name nvarchar(100) [not null]
+  UOM_Description nvarchar(500)
+  Is_Active bit [default: 1]
+  
+  Note: 'Danh mục đơn vị tính (Unit of Measure)'
+}
+
+Table Item_UOM_Conversion {
+  Item_UOM_Conversion_Id uniqueidentifier [pk, default: `NEWID()`]
+  Item_Id uniqueidentifier [not null, ref: > Item.Item_Id]
+  From_UOM nvarchar(50) [not null]
+  To_UOM nvarchar(50) [not null]
+  Conversion_Factor decimal(18,4) [not null, default: 1]
+  Is_Active bit [default: 1]
+  
+  Note: 'Bảng quy đổi đơn vị tính cho từng item'
+}
+
+Table Role {
+  Role_Id uniqueidentifier [pk, default: `NEWID()`]
+  Role_Code nvarchar(50)
+  Role_Name nvarchar(100)
+  Role_Description nvarchar(500)
+  Permissions nvarchar(max)
+  Is_Active bit [default: 1]
+}
+
+// User Relationships
+Ref: User.Role_Id > Role.Role_Id
+Ref: User.LegalEntity_Id > LegalEntity.LegalEntity_Id
+
+// PO Relationships
+Ref: PO.Warehouse_Id > Warehouse.Warehouse_Id
+Ref: PO.LegalEntity_Id > LegalEntity.LegalEntity_Id
+Ref: PO.Supplier_Id > Supplier.Supplier_Id
+Ref: PO.Requester_Id > User.User_Id
+Ref: PO.Approver_Id > User.User_Id
+
+// PO_Item Relationships
+Ref: PO_Item.PO_Id > PO.PO_Id
+Ref: PO_Item.Item_Id > Item.Item_Id
+
+// ASN Relationships
+Ref: ASN.PO_Id > PO.PO_Id
+Ref: ASN.Warehouse_Id > Warehouse.Warehouse_Id
+Ref: ASN.Source_Warehouse_Id > Warehouse.Warehouse_Id
+Ref: ASN.LegalEntity_Id > LegalEntity.LegalEntity_Id
+Ref: ASN.Supplier_Id > Supplier.Supplier_Id
+Ref: ASN.Requester_Id > User.User_Id
+Ref: ASN.Approver_Id > User.User_Id
+
+// ASN Detail Relationships
+Ref: ASN_Item.ASN_Id > ASN.ASN_Id
+Ref: ASN_Item.Item_Id > Item.Item_Id
+Ref: ASN_Delivery_Schedule.ASN_Id > ASN.ASN_Id
+Ref: ASN_Delivery_Schedule.Item_Id > Item.Item_Id
+Ref: ASN_Log.ASN_Id > ASN.ASN_Id
+Ref: ASN_Log.User_Id > User.User_Id
