@@ -1,0 +1,202 @@
+// ============================================
+// LOCATION SCHEMA
+// ============================================
+// Quản lý cấu trúc vị trí lưu trữ trong kho (Area, Rack, Floor, Slot, Bin)
+// ============================================
+
+Table Location_Area {
+  Area_Id uniqueidentifier [pk, default: `NEWID()`, note: 'ID khu vực']
+  Warehouse_Id uniqueidentifier [not null, note: 'Thuộc nhà kho nào']
+  LegalEntity_Id uniqueidentifier [not null, note: 'Pháp nhân sở hữu']
+  
+  Area_Code nvarchar(50) [not null, unique, note: 'Mã khu vực (Unique)']
+  Area_Name nvarchar(100) [not null, note: 'Tên khu vực']
+  Area_Type nvarchar(50) [not null, note: 'Loại khu vực - Ref: Sys_Area_Type']
+  
+  Width decimal(18,2) [note: 'Chiều rộng (m)']
+  Length decimal(18,2) [note: 'Chiều dài (m)']
+  Height decimal(18,2) [note: 'Chiều cao (m)']
+  Volume decimal(18,2) [note: 'Thể tích (m3)']
+  
+  Description nvarchar(500)
+  Is_Active bit [default: 1]
+  
+  Created_By uniqueidentifier
+  Created_At datetime2 [default: `GETDATE()`]
+  Updated_By uniqueidentifier
+  Updated_At datetime2
+  Is_Deleted bit [default: 0]
+
+  Indexes {
+    Warehouse_Id
+    LegalEntity_Id
+    Area_Code [unique]
+  }
+
+  Note: '''
+    Bảng: Location_Area (Khu vực chức năng)
+    Công dụng: Định nghĩa các phân khu chức năng lớn trong nhà kho.
+    Chức năng: 
+    - Phân chia kho thành các khu vực: Lưu trữ (Storage), Chờ nhập (Inbound Staging), Chờ xuất (Outbound Staging), Đóng gói (Packing).
+    - Quản lý kích thước tổng thể và thể tích của từng khu vực.
+    - Hỗ trợ phân quyền người dùng theo khu vực.
+  '''
+}
+
+Table Location_Rack {
+  Rack_Id uniqueidentifier [pk, default: `NEWID()`, note: 'ID Rack hoặc Floor']
+  Area_Id uniqueidentifier [not null, note: 'Thuộc khu vực nào']
+  
+  Rack_Code nvarchar(50) [not null, unique, note: 'Mã Rack/Floor (Unique)']
+  Rack_Name nvarchar(100) [not null, note: 'Tên Rack/Floor']
+  Rack_Type nvarchar(50) [not null, note: 'Loại (RACK, FLOOR) - Ref: Sys_Aisle_Type']
+  
+  Total_Columns int [default: 1, note: 'Số cột dọc (Bays)']
+  Total_Levels int [default: 1, note: 'Số tầng ngang (Levels)']
+  Total_Slots int [note: 'Tổng số vị trí']
+  
+  Standard_Width decimal(18,2)
+  Standard_Length decimal(18,2)
+  Standard_Height decimal(18,2)
+  
+  Pick_Sequence int [note: 'Thứ tự lấy hàng']
+  
+  Description nvarchar(500)
+  Is_Active bit [default: 1]
+  
+  Created_By uniqueidentifier
+  Created_At datetime2 [default: `GETDATE()`]
+  Updated_By uniqueidentifier
+  Updated_At datetime2
+  Is_Deleted bit [default: 0]
+
+  Indexes {
+    Area_Id
+    Rack_Code [unique]
+  }
+
+  Note: '''
+    Bảng: Location_Rack (Dãy kệ / Sàn kho)
+    Công dụng: Quản lý các dãy kệ (Rack) hoặc các khu vực để sàn (Floor) trong từng Area.
+    Chức năng:
+    - Định nghĩa cấu trúc vật lý: Số cột (Bays), Số tầng (Levels).
+    - Thiết lập thứ tự lấy hàng (Pick Sequence) ở mức dãy kệ.
+    - Quản lý kích thước tiêu chuẩn của các ô trong dãy.
+  '''
+}
+
+Table Location_Slot {
+  Slot_Id uniqueidentifier [pk, default: `NEWID()`, note: 'ID vị trí (hộc)']
+  Rack_Id uniqueidentifier [not null, note: 'Thuộc Rack/Floor nào']
+  
+  Slot_Code nvarchar(100) [not null, unique, note: 'Mã vị trí (Generated: AREA-RACK-COL-LVL)']
+  Slot_Name nvarchar(100) [note: 'Tên hiển thị']
+  
+  Column_Index int [not null, default: 1, note: 'Tọa độ cột (X)']
+  Level_Index int [not null, default: 1, note: 'Tọa độ tầng (Y)']
+  
+  Slot_Status nvarchar(50) [default: 'ACTIVE', note: 'ACTIVE, INACTIVE, DAMAGED']
+  
+  Max_Weight decimal(18,2)
+  Max_Volume decimal(18,2)
+  
+  Pick_Sequence int [note: 'Thứ tự lấy hàng chi tiết']
+  
+  Created_By uniqueidentifier
+  Created_At datetime2 [default: `GETDATE()`]
+  Updated_By uniqueidentifier
+  Updated_At datetime2
+  Is_Deleted bit [default: 0]
+
+  Indexes {
+    Rack_Id
+    Slot_Code [unique]
+  }
+
+  Note: '''
+    Bảng: Location_Slot (Vị trí / Hộc chứa)
+    Công dụng: Đại diện cho một ô/vị trí cụ thể trên kệ hoặc một ô dưới sàn.
+    Chức năng:
+    - Xác định tọa độ chính xác (Cột X, Tầng Y).
+    - Tự động sinh mã vị trí (Slot Code) theo chuẩn quản lý.
+    - Quản lý tải trọng và trạng thái hoạt động (Active/Inactive) của từng hộc.
+    - Lưu pick sequence chi tiết để tối ưu lộ trình picking.
+  '''
+}
+
+Table Location_Bin {
+  Bin_Id uniqueidentifier [pk, default: `NEWID()`, note: 'ID Bin']
+  Slot_Id uniqueidentifier [not null, note: 'Thuộc vị trí nào']
+  
+  Bin_Code nvarchar(50) [not null, unique, note: 'Mã Bin (Unique)']
+  Bin_Name nvarchar(100) [not null, note: 'Tên Bin']
+  
+  Storage_Type nvarchar(50) [note: 'Loại lưu kho (GOOD, QC, PENDING, DAMAGED) - Ref: Sys_Bin_Storage_Type']
+  Condition_Type nvarchar(50) [note: 'Tình trạng chi tiết - Ref: Sys_Bin_Condition']
+  
+  Current_Weight decimal(18,4) [default: 0]
+  Current_Volume decimal(18,4) [default: 0]
+  
+  Is_Full bit [default: 0]
+  Has_Inventory bit [default: 0]
+  
+  Description nvarchar(500)
+  
+  Created_By uniqueidentifier
+  Created_At datetime2 [default: `GETDATE()`]
+  Updated_By uniqueidentifier
+  Updated_At datetime2
+  Is_Deleted bit [default: 0]
+
+  Indexes {
+    Slot_Id
+    Bin_Code [unique]
+  }
+
+  Note: '''
+    Bảng: Location_Bin (Thùng chứa / Ô chứa nhỏ nhất)
+    Công dụng: Đơn vị lưu trữ nhỏ nhất trong kho. Một Slot có thể chứa một hoặc nhiều Bin.
+    Chức năng:
+    - Theo dõi tình trạng hàng tồn (Có hàng hay không).
+    - Phân loại tình trạng hàng (Hàng tốt, Hàng QC, Hàng hỏng).
+    - Kiểm soát tải trọng và thể tích thực tế đang sử dụng.
+    - Là đơn vị liên kết trực tiếp với Inventory (Tồn kho).
+  '''
+}
+
+// Bảng Log Audit cho Location (Consolidated)
+Table Location_Log {
+  Log_Id uniqueidentifier [pk, default: `NEWID()`]
+  Reference_Id uniqueidentifier [not null, note: 'ID of Area, Rack, Slot, or Bin']
+  Reference_Type nvarchar(50) [not null, note: 'AREA, RACK, SLOT, BIN']
+  
+  Action nvarchar(50) [not null, note: 'CREATE, UPDATE, DELETE, DEACTIVATE']
+  Description nvarchar(max)
+  
+  Data_Before nvarchar(max) [note: 'JSON Snapshot']
+  Data_After nvarchar(max) [note: 'JSON Snapshot']
+  
+  Created_By uniqueidentifier
+  Created_At datetime2 [default: `GETDATE()`]
+
+  Note: '''
+    Bảng: Location_Log (Lịch sử thay đổi layout)
+    Công dụng: Lưu vết toàn bộ các thao tác thay đổi cấu trúc kho.
+    Chức năng:
+    - Audit Trail: Theo dõi ai đã thay đổi gì, vào lúc nào.
+    - Data Integrity: Lưu snapshot dữ liệu (JSON) trước và sau khi thay đổi để phục vụ mục đích kiểm tra hoặc phục hồi.
+    - Tracking: Theo dõi vòng đời của Area, Rack, Slot và Bin.
+  '''
+}
+
+// Relationships
+Ref: Location_Area.Warehouse_Id > Warehouse.Warehouse_Id
+Ref: Location_Rack.Area_Id > Location_Area.Area_Id
+Ref: Location_Slot.Rack_Id > Location_Rack.Rack_Id
+Ref: Location_Bin.Slot_Id > Location_Slot.Slot_Id
+
+// Constrain Relationships
+Ref: Location_Area.Area_Type > Sys_Area_Type.Code
+Ref: Location_Rack.Rack_Type > Sys_Aisle_Type.Code
+Ref: Location_Bin.Storage_Type > Sys_Bin_Storage_Type.Code
+Ref: Location_Bin.Condition_Type > Sys_Bin_Condition.Code

@@ -113,6 +113,176 @@ Table Sys_Transaction_Type {
   '''
 }
 
+Table Sys_Zone_Type {
+  Id int [pk, increment]
+  Code nvarchar(50) [not null, unique]
+  Name nvarchar(100)
+  
+  Note: '''
+    Loại kho chức năng (Functional Area Type)
+    - INTERNAL: Kho nội bộ
+    - SCRAP: Kho phế liệu
+    - RETURN: Kho hàng trả về
+    - QC: Kho kiểm soát chất lượng
+    - STAGING: Kho chờ xuất/nhập
+  '''
+}
+
+// ============================================
+// LOCATION Module Constants
+// ============================================
+
+Table Sys_Area_Type {
+  Id int [pk, increment]
+  Code nvarchar(50) [not null, unique]
+  Name nvarchar(100)
+  Note: '''
+    Loại khu vực (Area Type)
+    - STORAGE: Khu vực lưu trữ
+    - INBOUND_STAGING: Khu vực chờ nhập
+    - OUTBOUND_STAGING: Khu vực chờ xuất
+    - PACKING: Khu vực đóng gói
+    - RETURN: Khu vực hàng trả
+  '''
+}
+
+Table Sys_Aisle_Type {
+  Id int [pk, increment]
+  Code nvarchar(50) [not null, unique]
+  Name nvarchar(100)
+  Note: '''
+    Loại dãy/kệ (Aisle Type)
+    - RACK: Kệ chứa hàng (nhiều tầng)
+    - FLOOR: Sàn (1 tầng)
+  '''
+}
+
+Table Sys_Bin_Storage_Type {
+  Id int [pk, increment]
+  Code nvarchar(50) [not null, unique]
+  Name nvarchar(100)
+  Note: '''
+    Loại lưu kho của Bin (Bin Storage Type)
+    - GOOD: Hàng tốt (Hàng mới, Đã sử dụng)
+    - QC: Kiểm soát chất lượng (Chờ kiểm nhập, Chờ đánh giá)
+    - PENDING: Chờ xử lý (Chờ sửa chữa, thanh lý, thu hồi, trả NCC)
+    - DAMAGED: Hàng hỏng
+  '''
+}
+
+Table Sys_Bin_Condition {
+  Id int [pk, increment]
+  Code nvarchar(50) [not null, unique]
+  Name nvarchar(100)
+  Note: '''
+    Tình trạng chi tiết của Bin/Hàng (Bin Condition)
+    - NEW: Hàng mới
+    - USED: Đã sử dụng
+    - QC_PENDING: Chờ kiểm nhập
+    - QC_EVALUATING: Chờ đánh giá
+    - REPAIR_PENDING: Chờ sửa chữa
+    - DISPOSAL_PENDING: Chờ thanh lý
+    - RECALL_PENDING: Chờ thu hồi
+    - RETURN_PENDING: Chờ trả NCC
+  '''
+}
+
+// ============================================
+// OUTBOUND Module Constants
+// ============================================
+
+Table Sys_ODR_Type {
+  Id int [pk, increment]
+  Code nvarchar(50) [not null, unique]
+  Name nvarchar(100)
+  
+  Note: '''
+    Loại Yêu cầu xuất kho (ODR Source Type)
+    - ISR: Inventory Stock Request (Đề nghị lãnh kho nội bộ)
+    - RCR: Return Confirmation Request (Trả hàng NCC)
+    - DLR: Delivery Request (Xuất bán hàng)
+    - MANUAL: Tạo thủ công
+    - TRANSFER: Chuyển kho
+  '''
+}
+
+Table Sys_ODR_Status {
+  Id int [pk, increment]
+  Code nvarchar(50) [not null, unique]
+  Name nvarchar(100)
+  
+  Note: '''
+    Trạng thái Yêu cầu xuất kho (ODR)
+    - NEW: Mới tạo/Draft
+    - PENDING_ALLOCATION: Chờ phân bổ (Đã gởi duyệt)
+    - ALLOCATED: Đã phân bổ tồn kho (Chờ tạo phiếu xuất)
+    - PROCESSING: Đang xử lý (Đã tạo GI, đang soạn/xuất)
+    - COMPLETED: Hoàn thành (Đã xuất hết)
+    - CANCELED: Hủy bỏ
+  '''
+}
+
+Table Sys_GI_Status {
+  Id int [pk, increment]
+  Code nvarchar(50) [not null, unique]
+  Name nvarchar(100)
+  
+  Note: '''
+    Trạng thái Phiếu xuất kho (Goods Issue)
+    - DRAFT: Nháp (Chờ xử lý)
+    - PICKING: Đang soạn hàng (Waiting for Picking)
+    - PICKED: Đã soạn xong (Chờ xác nhận xuất)
+    - COMPLETED: Hoàn thành (Đã xác nhận xuất kho)
+    - CANCELED: Hủy
+  '''
+}
+
+// ============================================
+// ITEM Module Constants
+// ============================================
+
+Table Sys_Item_Group_Type {
+  Id int [pk, increment]
+  Code nvarchar(50) [not null, unique]
+  Name nvarchar(100)
+  Note: '''
+    Phân loại nhóm hàng (Classification)
+    - CONSUMABLE: Hàng tiêu hao
+    - NON_CONSUMABLE: Hàng không tiêu hao
+  '''
+}
+
+Table Sys_Item_Form {
+  Id int [pk, increment]
+  Code nvarchar(50) [not null, unique]
+  Name nvarchar(100)
+  Note: '''
+    Trạng thái vật lý (Form)
+    - SOLID: Rắn
+    - LIQUID: Lỏng
+    - GAS: Khí
+  '''
+}
+
+Table Sys_Item_Status {
+  Id int [pk, increment]
+  Code nvarchar(50) [not null, unique]
+  Name nvarchar(100)
+  Note: '''
+    Trạng thái Item
+    - DRAFT: Nháp
+    - ACTIVE: Đang hoạt động
+    - INACTIVE: Ngừng hoạt động
+  '''
+}
+
+Table Sys_UOM {
+  Id int [pk, increment]
+  Code nvarchar(50) [not null, unique]
+  Name nvarchar(100)
+  Note: 'Danh mục Đơn vị tính (Unit of Measure)'
+}
+
 // Bổ sung relationship vào GR_Schema (chỉ mang tính chất tham khảo logic)
 // Ref: GR.GR_Type > Sys_GR_Type.Code
 // Ref: GR.GR_Status > Sys_GR_Status.Code

@@ -1,0 +1,189 @@
+// ============================================
+// OUTBOUND SCHEMA (XUẤT KHO)
+// ============================================
+// Bao gồm: ODR (Yêu cầu xuất kho), Allocation (Phân bổ), GI (Phiếu xuất kho)
+// Phụ thuộc: Inventory (Tồn kho), System_Constants (Enums)
+// ============================================
+
+Table ODR {
+  ODR_Id uniqueidentifier [pk, default: `NEWID()`, note: 'ID yêu cầu xuất kho (Primary Key)']
+  ODR_Code nvarchar(50) [not null, unique, note: 'Mã yêu cầu (Generated: ODR-yyyyMMdd-xxxx)']
+  
+  // Nguồn gốc
+  Source_Document_Id uniqueidentifier [note: 'ID chứng từ nguồn (ISR_Id, RCR_Id...)']
+  Source_Type nvarchar(50) [not null, note: 'Loại nguồn (ISR, RCR, DLR, MANUAL...) - Ref: Sys_ODR_Type']
+  Reference_Code nvarchar(100) [note: 'Mã tham chiếu (Số chứng từ nguồn, VD: ISR-001)']
+  
+  // Thông tin tổ chức & Kho
+  Warehouse_Id uniqueidentifier [not null, note: 'Kho xuất hàng']
+  LegalEntity_Id uniqueidentifier [not null, note: 'Pháp nhân sở hữu hàng']
+  Department_Id uniqueidentifier [note: 'Phòng ban yêu cầu (cho loại ISR)']
+  
+  // Người liên quan
+  Requestor_Id uniqueidentifier [note: 'Người yêu cầu']
+  Approver_Id uniqueidentifier [note: 'Người duyệt (Source document aprover)']
+  
+  // Trạng thái & Tiến độ
+  ODR_Status nvarchar(50) [not null, default: 'NEW', note: 'Trạng thái ODR - Ref: Sys_ODR_Status']
+  Allocation_Status nvarchar(50) [note: 'Trạng thái phân bổ: None, Partial, Full']
+  
+  // Thông tin khác
+  Expected_Delivery_Date datetime2 [note: 'Ngày dự kiến xuất']
+  Notes nvarchar(1000) [note: 'Ghi chú chung']
+  
+  // Audit
+  Created_By uniqueidentifier [note: 'Người tạo']
+  Created_At datetime2 [default: `GETDATE()`, note: 'Thời gian tạo']
+  Updated_By uniqueidentifier [note: 'Người cập nhật cuối']
+  Updated_At datetime2 [note: 'Thời gian cập nhật cuối']
+  Is_Deleted bit [default: 0]
+}
+
+Table ODR_Item {
+  ODR_Item_Id uniqueidentifier [pk, default: `NEWID()`, note: 'ID dòng chi tiết ODR']
+  ODR_Id uniqueidentifier [not null, note: 'FK: Yêu cầu xuất kho']
+  
+  // Thông tin hàng hóa
+  Item_Id uniqueidentifier [not null, note: 'ID sản phẩm']
+  Item_Code nvarchar(50) [not null]
+  Item_Name nvarchar(200)
+  UOM nvarchar(50) [not null, note: 'Đơn vị tính']
+  Condition_Type nvarchar(50) [note: 'Tình trạng hàng yêu cầu (New, Damaged...) - Ref: Sys_Stock_Status']
+  
+  // Số lượng
+  Requested_Quantity decimal(18,4) [not null, note: 'SL yêu cầu']
+  Allocated_Quantity decimal(18,4) [default: 0, note: 'SL đã phân bổ (Soft allocation)']
+  Shipped_Quantity decimal(18,4) [default: 0, note: 'SL đã xuất kho (Available deducted)']
+  Canceled_Quantity decimal(18,4) [default: 0, note: 'SL hủy']
+  
+  // Trạng thái dòng
+  Line_Status nvarchar(50) [note: 'Trạng thái dòng: Open, Full, Closed']
+  
+  Notes nvarchar(500)
+}
+
+// Bảng lưu trữ kết quả phân bổ tồn kho (Soft Allocation)
+// Map ODR Item với Inventory Summary (Item + Status + Warehouse)
+Table ODR_Allocation {
+  Allocation_Id uniqueidentifier [pk, default: `NEWID()`]
+  ODR_Id uniqueidentifier [not null]
+  ODR_Item_Id uniqueidentifier [not null]
+  
+  // Phân bổ từ record tồn kho tổng hợp nào (Inventory Table)
+  Inventory_Id uniqueidentifier [not null, note: 'FK: Bảng Inventory (Summary)']
+  
+  // Thông tin snapshot
+  Item_Id uniqueidentifier [not null]
+  Allocated_Quantity decimal(18,4) [not null, note: 'Số lượng giữ chỗ']
+  
+  Created_By uniqueidentifier
+  Created_At datetime2 [default: `GETDATE()`]
+  
+  Note: 'Lưu trữ lượng hàng đang được giữ chỗ (Allocated) cho ODR này từ kho Inventory tổng'
+}
+
+Table GI {
+  GI_Id uniqueidentifier [pk, default: `NEWID()`, note: 'ID phiếu xuất kho (Goods Issue)']
+  GI_Code nvarchar(50) [not null, unique, note: 'Mã phiếu xuất: GI-yyyyMMdd-xxxx']
+  
+  ODR_Id uniqueidentifier [not null, note: 'FK: Yêu cầu xuất kho nguồn']
+  
+  // Thông tin chung (Copy từ ODR hoặc chọn lúc tạo)
+  Warehouse_Id uniqueidentifier [not null]
+  LegalEntity_Id uniqueidentifier [not null]
+  
+  // Phân loại
+  GI_Type nvarchar(50) [note: 'Thường giống ODR Type']
+  
+  // Trạng thái
+  GI_Status nvarchar(50) [not null, default: 'DRAFT', note: 'Ref: Sys_GI_Status']
+  
+  // Người thực hiện
+  Picker_Id uniqueidentifier [note: 'Người soạn hàng']
+  Picked_Date datetime2 [note: 'Ngày hoàn thành soạn']
+  Receiver_User_Id uniqueidentifier [note: 'Người nhận hàng (Thực tế)']
+  Delivery_Date datetime2 [note: 'Ngày xuất kho/Giao hàng (Actual Ship Date)']
+  
+  Notes nvarchar(1000)
+  Attachment_Path nvarchar(max) [note: 'JSON Array đường dẫn file']
+  
+  Created_By uniqueidentifier
+  Created_At datetime2 [default: `GETDATE()`]
+  Updated_By uniqueidentifier
+  Updated_At datetime2
+  Is_Deleted bit [default: 0]
+}
+
+Table GI_Item {
+  GI_Item_Id uniqueidentifier [pk, default: `NEWID()`]
+  GI_Id uniqueidentifier [not null, note: 'FK: Phiếu xuất kho']
+  ODR_Item_Id uniqueidentifier [not null, note: 'FK: Dòng yêu cầu xuất kho']
+  
+  // Thông tin hàng (Snapshot)
+  Item_Id uniqueidentifier [not null]
+  Item_Code nvarchar(50)
+  Item_Name nvarchar(200)
+  UOM nvarchar(50)
+  Condition_Type nvarchar(50) [note: 'Tình trạng hàng']
+  
+  // Số lượng
+  Requested_Quantity decimal(18,4) [not null, note: 'SL cần xuất theo phiếu này (lấy từ phân bổ)']
+  Picked_Quantity decimal(18,4) [default: 0, note: 'SL thực tế đã soạn (Tổng từ GI_Picking_Location)']
+  Canceled_Quantity decimal(18,4) [default: 0, note: 'SL hủy soạn']
+  
+  Notes nvarchar(500)
+}
+
+// Chi tiết vị trí lấy hàng (Hard Allocation / Actual Pick)
+Table GI_Picking_Location {
+  Picking_Id uniqueidentifier [pk, default: `NEWID()`]
+  GI_Item_Id uniqueidentifier [not null, note: 'FK: Dòng phiếu xuất']
+  
+  // Vị trí lấy hàng thực tế
+  Bin_Id uniqueidentifier [not null, note: 'FK: Vị trí (Bin) lấy hàng']
+  Bin_Code nvarchar(50) [note: 'Mã vị trí snapshot']
+  
+  // Thông tin Lot/Batch nếu có
+  Lot_Number nvarchar(50) [note: 'Số lô (nếu quản lý theo lô)']
+  Expiry_Date date [note: 'Hạn sử dụng (snapshot)']
+  
+  // Số lượng
+  Picked_Quantity decimal(18,4) [not null, note: 'SL lấy tại vị trí này']
+  
+  // Người/Thời gian soạn dòng này
+  Picked_By uniqueidentifier
+  Picked_At datetime2 [default: `GETDATE()`]
+  
+  Note: 'Lưu trữ thông tin chi tiết các lần lấy hàng từ vị trí cụ thể'
+}
+
+Table Outbound_Log {
+  Log_Id uniqueidentifier [pk, default: `NEWID()`]
+  ODR_Id uniqueidentifier
+  GI_Id uniqueidentifier
+  Action nvarchar(100) [note: 'ALLOCATE, PICK, CONFIRM_GI, CANCEL...']
+  Description nvarchar(max)
+  Data_Before nvarchar(max) [note: 'JSON']
+  Data_After nvarchar(max) [note: 'JSON']
+  Created_By uniqueidentifier
+  Created_At datetime2 [default: `GETDATE()`]
+}
+
+// Relationships
+Ref: ODR.Source_Type > Sys_ODR_Type.Code
+Ref: ODR.ODR_Status > Sys_ODR_Status.Code
+Ref: ODR_Item.ODR_Id > ODR.ODR_Id
+Ref: ODR_Item.Condition_Type > Sys_Stock_Status.Code
+
+Ref: ODR_Allocation.ODR_Id > ODR.ODR_Id
+Ref: ODR_Allocation.ODR_Item_Id > ODR_Item.ODR_Item_Id
+// Ref: ODR_Allocation.Inventory_Id > Inventory.Inventory_Id (External Ref to GR_Schema)
+
+Ref: GI.ODR_Id > ODR.ODR_Id
+Ref: GI.GI_Status > Sys_GI_Status.Code
+
+Ref: GI_Item.GI_Id > GI.GI_Id
+Ref: GI_Item.ODR_Item_Id > ODR_Item.ODR_Item_Id
+
+Ref: GI_Picking_Location.GI_Item_Id > GI_Item.GI_Item_Id
+// Ref: GI_Picking_Location.Bin_Id > Inventory_Bin.Bin_Id (External Ref to GR_Schema)

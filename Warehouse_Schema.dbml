@@ -1,0 +1,62 @@
+// ============================================
+// WAREHOUSE MASTER DATA SCHEMA
+// ============================================
+// Quản lý danh mục Kho (Warehouse) và Kho chức năng (Functional Area/Zone)
+// ============================================
+
+Table Warehouse {
+  Warehouse_Id uniqueidentifier [pk, default: `NEWID()`, note: 'ID nhà kho']
+  LegalEntity_Id uniqueidentifier [not null, note: 'Thuộc pháp nhân nào']
+  Warehouse_Code nvarchar(50) [not null, unique, note: 'Mã nhà kho (UPPERCASE, Unique)']
+  Warehouse_Name nvarchar(100) [not null, note: 'Tên nhà kho']
+  Address nvarchar(255) [not null, note: 'Địa chỉ']
+  Description nvarchar(500) [note: 'Ghi chú/Mô tả']
+  
+  Is_Active bit [default: 1, note: 'Trạng thái hoạt động (1: Active, 0: Inactive)']
+  
+  Created_By uniqueidentifier [note: 'Người tạo']
+  Created_At datetime2 [default: `GETDATE()`, note: 'Thời gian tạo']
+  Updated_By uniqueidentifier [note: 'Người cập nhật']
+  Updated_At datetime2 [note: 'Thời gian cập nhật']
+  Is_Deleted bit [default: 0, note: 'Cờ xóa mềm']
+}
+
+Table Warehouse_Zone {
+  Zone_Id uniqueidentifier [pk, default: `NEWID()`, note: 'ID kho chức năng (Zone)']
+  Warehouse_Id uniqueidentifier [not null, note: 'Thuộc nhà kho nào']
+  
+  Zone_Code nvarchar(50) [not null, unique, note: 'Mã kho chức năng (Unique)']
+  Zone_Name nvarchar(100) [not null, note: 'Tên kho chức năng']
+  
+  Zone_Type nvarchar(50) [not null, note: 'Loại kho chức năng (INTERNAL, SCRAP, etc.) - Ref: Sys_Zone_Type']
+  
+  Description nvarchar(500)
+  Is_Active bit [default: 1, note: 'Trạng thái hoạt động']
+  
+  Created_By uniqueidentifier
+  Created_At datetime2 [default: `GETDATE()`]
+  Updated_By uniqueidentifier
+  Updated_At datetime2
+  Is_Deleted bit [default: 0]
+}
+
+// Bảng Log lịch sử thay đổi (Audit Trail) cho Warehouse & Zone
+Table Warehouse_Log {
+  Log_Id uniqueidentifier [pk, default: `NEWID()`]
+  Reference_Id uniqueidentifier [not null, note: 'ID đối tượng (Warehouse_Id hoặc Zone_Id)']
+  Reference_Type nvarchar(50) [not null, note: 'WAREHOUSE hoặc ZONE']
+  
+  Action nvarchar(50) [not null, note: 'CREATE, UPDATE, DELETE, DEACTIVATE']
+  Description nvarchar(max) [note: 'Chi tiết thay đổi']
+  
+  // Snapshot dữ liệu trước và sau khi thay đổi (JSON)
+  Data_Before nvarchar(max)
+  Data_After nvarchar(max)
+  
+  Created_By uniqueidentifier
+  Created_At datetime2 [default: `GETDATE()`]
+}
+
+// Relationships
+Ref: Warehouse_Zone.Warehouse_Id > Warehouse.Warehouse_Id
+Ref: Warehouse_Zone.Zone_Type > Sys_Zone_Type.Code

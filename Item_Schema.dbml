@@ -1,0 +1,197 @@
+// ============================================
+// ITEM MASTER DATA SCHEMA
+// ============================================
+// Quản lý danh mục Item, Nhóm Item và Danh mục Item
+// ============================================
+
+Table Item_Category {
+  Category_Id uniqueidentifier [pk, default: `NEWID()`]
+  Category_Code nvarchar(50) [not null, unique, note: 'Mã danh mục (Auto sinh)']
+  Category_Name nvarchar(200) [not null]
+  Category_Name_En nvarchar(200)
+  
+  Is_Active bit [default: 1]
+  
+  Created_By uniqueidentifier
+  Created_At datetime2 [default: `GETDATE()`]
+  Updated_By uniqueidentifier
+  Updated_At datetime2
+  Is_Deleted bit [default: 0]
+
+  Note: '''
+    Bảng: Item_Category (Danh mục Item)
+    Công dụng: Phân loại Item ở cấp cao nhất.
+    Chức năng: 
+    - Phân chia hàng hóa thành các danh mục lớn (Nguyên vật liệu, Thành phẩm, CC-DC).
+    - Hỗ trợ báo cáo và lọc tồn kho cấp cao.
+    - Quản lý trạng thái hoạt động của cả một nhóm danh mục.
+  '''
+}
+
+Table Item_Group {
+  Group_Id uniqueidentifier [pk, default: `NEWID()`]
+  Category_Id uniqueidentifier [not null]
+  
+  Group_Code nvarchar(50) [not null, unique, note: 'Mã nhóm (4 ký tự)']
+  Group_Name nvarchar(200) [not null]
+  
+  Classification nvarchar(50) [not null, note: 'CONSUMABLE, NON_CONSUMABLE - Ref: Sys_Item_Group_Type']
+  Is_Stockable bit [default: 1, note: 'Có nhập kho hay không (Áp dụng cho NON_CONSUMABLE)']
+  
+  Is_Active bit [default: 1]
+  
+  Created_By uniqueidentifier
+  Created_At datetime2 [default: `GETDATE()`]
+  Updated_By uniqueidentifier
+  Updated_At datetime2
+  Is_Deleted bit [default: 0]
+
+  Note: '''
+    Bảng: Item_Group (Nhóm Item)
+    Công dụng: Phân nhóm chi tiết hơn trong một danh mục.
+    Chức năng: 
+    - Quy định tính chất tiêu hao (Consumable) hoặc không tiêu hao.
+    - Xác định hàng hóa có được phép nhập kho (Stockable) hay không.
+    - Là thuộc tính bắt buộc khi khai báo Item.
+  '''
+}
+
+Table Item {
+  Item_Id uniqueidentifier [pk, default: `NEWID()`]
+  Group_Id uniqueidentifier [not null]
+  Category_Id uniqueidentifier [not null]
+  
+  Item_Code nvarchar(50) [not null, unique, note: 'Mã Item (Auto sinh)']
+  Representative_Code nvarchar(2) [not null, note: 'Mã đại diện (2 ký tự)']
+  
+  Barcode nvarchar(100) [note: 'Mã vạch (Barcode)']
+  QR_Code nvarchar(255) [note: 'Mã QR (Auto sinh)']
+  
+  Item_Name nvarchar(255) [not null]
+  Item_Name_En nvarchar(255)
+  
+  Base_UOM nvarchar(50) [not null, note: 'Đơn vị tính chính - Ref: Sys_UOM']
+  
+  Expected_Price decimal(18,2) [default: 0]
+  Last_Price decimal(18,2) [default: 0, note: 'Giá nhập gần nhất (Auto cật nhật từ GR)']
+  
+  Description nvarchar(500)
+  Image_Url nvarchar(max)
+  
+  Is_Asset bit [default: 0, note: 'Có phải là tài sản (Asset) hay không']
+  Is_Dangerous bit [default: 0, note: 'Hàng nguy hiểm']
+  Is_Flammable bit [default: 0, note: 'Hàng dễ cháy']
+  
+  // Thông số kỹ thuật
+  Length decimal(18,2) [default: 0]
+  Width decimal(18,2) [default: 0]
+  Height decimal(18,2) [default: 0]
+  Weight decimal(18,2) [default: 0]
+  Radius decimal(18,2) [default: 0]
+  
+  Color nvarchar(100)
+  Material nvarchar(100)
+  Form nvarchar(50) [note: 'SOLID, LIQUID, GAS - Ref: Sys_Item_Form']
+  Power nvarchar(100) [note: 'Công suất thiết bị']
+  Voltage nvarchar(100) [note: 'Điện áp sử dụng']
+  Model nvarchar(100)
+  Brand nvarchar(100)
+  Origin_Country nvarchar(100) [note: 'Xuất xứ hàng hóa']
+  
+  Status nvarchar(50) [default: 'ACTIVE', note: 'DRAFT, ACTIVE, INACTIVE - Ref: Sys_Item_Status']
+  
+  Created_By uniqueidentifier
+  Created_At datetime2 [default: `GETDATE()`]
+  Updated_By uniqueidentifier
+  Updated_At datetime2
+  Is_Deleted bit [default: 0]
+
+  Indexes {
+    Item_Code [unique]
+    Item_Name
+    Category_Id
+    Group_Id
+    Status
+  }
+
+  Note: '''
+    Bảng: Item (Sản phẩm / Hàng hóa)
+    Công dụng: Thông tin chi tiết của từng loại hàng hóa trong hệ thống.
+    Chức năng: 
+    - Quản lý mã định danh duy nhất (Item Code).
+    - Lưu trữ bộ thông số kỹ thuật đầy đủ để phục vụ kho vận và kỹ thuật.
+    - Tracking trạng thái (Draft, Active, Inactive).
+    - Lưu trữ thông tin hình ảnh và tài liệu đính kèm (qua Image_Url/Attachment).
+  '''
+}
+
+// Bảng mapping Item với Legal Entity (Một Item có thể dùng cho nhiều pháp nhân)
+Table Item_LegalEntity {
+  Item_Id uniqueidentifier [not null]
+  LegalEntity_Id uniqueidentifier [not null]
+  
+  Created_At datetime2 [default: `GETDATE()`]
+
+  Indexes {
+    (Item_Id, LegalEntity_Id) [pk]
+  }
+
+  Note: 'Bảng mapping phân quyền sử dụng Item cho từng Pháp nhân (Legal Entity).'
+}
+
+// Bảng đơn vị tính quy đổi
+Table Item_UOM_Conversion {
+  Conversion_Id uniqueidentifier [pk, default: `NEWID()`]
+  Item_Id uniqueidentifier [not null]
+  
+  From_UOM nvarchar(50) [not null, note: 'Đơn vị quy đổi - Ref: Sys_UOM']
+  To_UOM nvarchar(50) [not null, note: 'Đơn vị cơ sở (thường là Base_UOM)']
+  Factor decimal(18,4) [not null, note: 'Hệ số quy đổi (VD: 1 Thùng = 12 Cái)']
+  
+  Is_Active bit [default: 1]
+  Effective_Date datetime2 [note: 'Ngày áp dụng quy đổi']
+  
+  Created_By uniqueidentifier
+  Created_At datetime2 [default: `GETDATE()`]
+
+  Note: '''
+    Bảng: Item_UOM_Conversion (Quy đổi đơn vị tính)
+    Công dụng: Cho phép nhập/xuất hàng theo nhiều đơn vị tính khác nhau.
+    Chức năng: Tự động tính toán số lượng tương đương về đơn vị tính cơ sở (Base UOM).
+  '''
+}
+
+// Lịch sử thay đổi (Audit Log)
+Table Item_Log {
+  Log_Id uniqueidentifier [pk, default: `NEWID()`]
+  Reference_Id uniqueidentifier [not null, note: 'ID của Category, Group hoặc Item']
+  Reference_Type nvarchar(50) [not null, note: 'CATEGORY, GROUP, ITEM']
+  
+  Action nvarchar(50) [not null, note: 'CREATE, UPDATE, DELETE, DEACTIVATE']
+  Description nvarchar(max)
+  
+  Data_Before nvarchar(max) [note: 'JSON Snapshot trước thay đổi']
+  Data_After nvarchar(max) [note: 'JSON Snapshot sau thay đổi']
+  
+  Created_By uniqueidentifier
+  Created_At datetime2 [default: `GETDATE()`]
+  
+  Note: 'Lưu vết thay đổi thông tin sản phẩm và cấu trúc danh mục hàng hóa.'
+}
+
+// Relationships
+Ref: Item_Group.Category_Id > Item_Category.Category_Id
+Ref: Item.Group_Id > Item_Group.Group_Id
+Ref: Item.Category_Id > Item_Category.Category_Id
+
+Ref: Item_LegalEntity.Item_Id > Item.Item_Id
+
+Ref: Item_UOM_Conversion.Item_Id > Item.Item_Id
+
+// Constrain Relationships
+Ref: Item_Group.Classification > Sys_Item_Group_Type.Code
+Ref: Item.Form > Sys_Item_Form.Code
+Ref: Item.Status > Sys_Item_Status.Code
+Ref: Item.Base_UOM > Sys_UOM.Code
+Ref: Item_UOM_Conversion.From_UOM > Sys_UOM.Code
+Ref: Item_UOM_Conversion.To_UOM > Sys_UOM.Code
